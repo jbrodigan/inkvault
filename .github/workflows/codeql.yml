@@ -1,0 +1,50 @@
+# CodeQL code scanning (advanced setup).
+#
+# build-mode: none for every language. The default setup chose autobuild for java-kotlin, but the
+# Gradle build lives in android/ and needs JDK 17 + the Android SDK; CodeQL's autobuild found only
+# JDK 8/11 and no SDK, so the build failed and no database was produced. Source-level extraction
+# (build-mode: none) needs no build at all — reliable, fast, and free on a public repo. Revisit a
+# manual build only if deeper dataflow precision is ever needed.
+name: CodeQL
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  schedule:
+    - cron: "27 4 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: java-kotlin
+            build-mode: none
+          - language: python
+            build-mode: none
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
