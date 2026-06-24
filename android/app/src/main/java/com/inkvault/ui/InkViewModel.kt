@@ -107,6 +107,11 @@ class InkViewModel(
         settings.themeMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.DEFAULT)
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { settings.setThemeMode(mode) }
 
+    /** Opt-in biometric vault lock (Section C1). Default off. */
+    val appLockEnabled: StateFlow<Boolean> =
+        settings.appLockEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    fun setAppLockEnabled(on: Boolean) = viewModelScope.launch { settings.setAppLockEnabled(on) }
+
     fun setSyncMethod(method: SyncMethod) = viewModelScope.launch { settings.setSyncMethod(method) }
     fun setLocalFolderUri(uri: String) = viewModelScope.launch { settings.setLocalFolderUri(uri) }
     fun setTailscaleEndpoint(endpoint: String) = viewModelScope.launch { settings.setTailscaleEndpoint(endpoint) }

@@ -3,24 +3,41 @@ package com.inkvault.ui
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.inkvault.di.ServiceLocator
 import com.inkvault.pen.PenForegroundService
+import com.inkvault.security.AppLock
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity (not bare ComponentActivity) so the AndroidX BiometricPrompt can attach — see AppLock.
+class MainActivity : FragmentActivity() {
+
+    // Vault unlocked for this foreground session (Section C1); re-locked in onStop when backgrounded.
+    private var unlocked by mutableStateOf(false)
 
     private val viewModel: InkViewModel by viewModels {
         val sl = ServiceLocator.from(applicationContext)
@@ -55,16 +72,25 @@ class MainActivity : ComponentActivity() {
         ensurePermissionsThenStartService()
         setContent {
             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+            val lockEnabled by viewModel.appLockEnabled.collectAsStateWithLifecycle()
             InkVaultTheme(themeMode) {
-                // The Surface fills edge-to-edge so its themed background paints BEHIND the
-                // transparent system bars (so the bars match the app, not the light window bg).
-                // Only the content is inset from the bars (systemBarsPadding consumes the insets,
-                // so the inner Scaffold's bottom nav isn't double-padded).
                 Surface(Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxSize().systemBarsPadding()) { InkApp(viewModel) }
+                    Box(Modifier.fillMaxSize().systemBarsPadding()) {
+                        if (lockEnabled && !unlocked) {
+                            LockScreen { AppLock.prompt(this@MainActivity) { ok -> if (ok) unlocked = true } }
+                        } else {
+                            InkApp(viewModel)
+                        }
+                    }
                 }
             }
         }
+    }
+
+    // Re-lock when the app is genuinely backgrounded — but not on a rotation/config change.
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) unlocked = false
     }
 
     private fun ensurePermissionsThenStartService() {
@@ -84,4 +110,18 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
             listOf(Manifest.permission.POST_NOTIFICATIONS)
         else emptyList()
+}
+
+/** Minimal placeholder shown while the vault is locked; auto-prompts on appear, with a manual retry. */
+@Composable
+private fun LockScreen(onUnlock: () -> Unit) {
+    LaunchedEffect(Unit) { onUnlock() }
+    Column(
+        Modifier.fillMaxSize().padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("InkVault is locked", style = MaterialTheme.typography.titleMedium)
+        Button(onClick = onUnlock, modifier = Modifier.padding(top = 16.dp)) { Text("Unlock") }
+    }
 }

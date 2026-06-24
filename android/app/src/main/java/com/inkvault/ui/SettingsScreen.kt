@@ -54,6 +54,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.inkvault.export.SyncMethod
+import com.inkvault.security.AppLock
 import com.inkvault.export.ThemeMode
 import com.inkvault.pen.BatteryOptimization
 import com.inkvault.pen.FirmwareUpdateState
@@ -220,6 +221,9 @@ fun SettingsScreen(vm: InkViewModel, onBack: () -> Unit, onOpenCaptureLab: () ->
                 )
             }
         }
+
+        item { CategoryHeader("Privacy & security") }
+        item { AppLockCard(vm) }
 
         item { CategoryHeader("Integrations") }
         item { SectionLabel("Calendar") }
@@ -541,6 +545,41 @@ private fun CaptureReliabilityCard() {
 }
 
 /** Top-level Settings category — a bold header (Sora) above the mono section labels (design §9). */
+/**
+ * App-lock toggle (Section C1). Only enableable when the device can actually authenticate (a
+ * biometric or device credential is set up); otherwise it's disabled with a hint. The lock itself
+ * is enforced in MainActivity.
+ */
+@Composable
+private fun AppLockCard(vm: InkViewModel) {
+    val cs = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val enabled by vm.appLockEnabled.collectAsStateWithLifecycle()
+    val available = remember { AppLock.available(context) }
+    SettingsCard {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                Text("App lock", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (available) {
+                        "Require your biometric or device PIN to open InkVault, and again after it's " +
+                            "been in the background."
+                    } else {
+                        "Set up a screen lock (PIN / pattern / biometric) on your device to enable this."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                )
+            }
+            Switch(checked = enabled && available, enabled = available, onCheckedChange = { vm.setAppLockEnabled(it) })
+        }
+    }
+}
+
 @Composable
 private fun CategoryHeader(text: String) {
     Text(

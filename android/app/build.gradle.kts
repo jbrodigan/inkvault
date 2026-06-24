@@ -128,6 +128,11 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
+    // Opt-in biometric/device-credential app-lock for the vault (Section C1). The AndroidX wrapper
+    // normalizes BiometricPrompt across API levels + provides device-credential fallback; it also
+    // pulls androidx.fragment (so MainActivity can be a FragmentActivity, which BiometricPrompt needs).
+    implementation("androidx.biometric:biometric:1.1.0")
+
     // The real Neo SDK jar would be dropped here, e.g.:
     // implementation(files("libs/neosmartpen-sdk-2.1.10.jar"))
 
