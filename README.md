@@ -21,4 +21,6 @@ See [`android/DESIGN.md`](android/DESIGN.md) for the full architecture and phase
 
 ## License
 
-GPL-3.0 — the app links the GPL-3.0 NeoLAB Android SDK. See [LICENSE](LICENSE).
+GPL-3.0 — the app links the GPL-3.0 NeoLAB Android SDK, so the combined work is GPL-3.0. See
+[LICENSE](LICENSE), and [`android/neosdk/THIRD_PARTY_NOTICES.md`](android/neosdk/THIRD_PARTY_NOTICES.md)
+for the SDK's source + patches (the SDK binary is user-provided, not bundled).
