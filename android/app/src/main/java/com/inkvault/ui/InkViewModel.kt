@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -230,9 +231,9 @@ class InkViewModel(
         combine(selectedPage, pages) { id, list -> list.firstOrNull { it.id == id }?.transcript }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun openNotebook(id: String) { selectedNotebook.value = id; selectedPage.value = null }
-    fun openPage(id: String) { selectedPage.value = id; clearTranslation() }
-    fun back() { if (selectedPage.value != null) selectedPage.value = null else selectedNotebook.value = null }
+    fun openNotebook(id: String) { clearOcrDisclosure(); selectedNotebook.value = id; selectedPage.value = null }
+    fun openPage(id: String) { clearOcrDisclosure(); selectedPage.value = id; clearTranslation() }
+    fun back() { clearOcrDisclosure(); if (selectedPage.value != null) selectedPage.value = null else selectedNotebook.value = null }
 
     fun currentNotebook(): String? = selectedNotebook.value
     fun currentPage(): String? = selectedPage.value
@@ -316,22 +317,61 @@ class InkViewModel(
     /** Whether on-device OCR is wired (drives the menu item's visibility). */
     val onDeviceOcrAvailable: Boolean = transcribeOnDevice != null
 
+    /** Drives the one-time disclosure that on-device OCR fetches a model from Google on first use. */
+    private val _showOcrDisclosure = MutableStateFlow(false)
+    val showOcrDisclosure: StateFlow<Boolean> = _showOcrDisclosure
+    /** The page the disclosure was raised for, so confirm transcribes that page even if selection moves. */
+    private var pendingOcrPageId: String? = null
+
     /**
      * Transcribe the open page on-device (ML Kit Digital Ink) and index it. The first run downloads
-     * the language model (one-time, ~few MB); after that it's fully offline.
+     * the language model from Google (one-time, ~few MB) — outbound to a target the user didn't
+     * select — so the very first time we surface a disclosure and only proceed once the user accepts;
+     * after that no further download is needed and we never ask again.
      */
     fun transcribeCurrentPageOnDevice() {
         val pageId = selectedPage.value ?: return
-        val run = transcribeOnDevice ?: return
+        if (transcribeOnDevice == null) return
         viewModelScope.launch {
-            _exportStatus.value = "Transcribing on device…"
-            val text = runCatching { run(pageId) }.getOrNull()
-            _exportStatus.value =
-                if (text == null) "Couldn't transcribe (no recognizable handwriting / model)"
-                else "Transcribed ${text.length} chars — now searchable"
-            delay(3_000)
-            _exportStatus.value = null
+            if (settings.onDeviceOcrAcknowledged.first()) {
+                doTranscribe(pageId)
+            } else {
+                pendingOcrPageId = pageId
+                _showOcrDisclosure.value = true
+            }
         }
+    }
+
+    /** User accepted the on-device-OCR disclosure: remember it (never ask again) and transcribe the
+     *  page the disclosure was raised for (bound at request time, so a later selection change can't
+     *  redirect it to the wrong page). */
+    fun confirmOcrDisclosure() {
+        val pageId = pendingOcrPageId
+        clearOcrDisclosure()
+        if (pageId == null) return
+        viewModelScope.launch {
+            settings.acknowledgeOnDeviceOcr()
+            doTranscribe(pageId)
+        }
+    }
+
+    /** User dismissed the disclosure (or navigated away) — nothing is downloaded or transcribed. */
+    fun dismissOcrDisclosure() = clearOcrDisclosure()
+
+    private fun clearOcrDisclosure() {
+        _showOcrDisclosure.value = false
+        pendingOcrPageId = null
+    }
+
+    private suspend fun doTranscribe(pageId: String) {
+        val run = transcribeOnDevice ?: return
+        _exportStatus.value = "Transcribing on device…"
+        val text = runCatching { run(pageId) }.getOrNull()
+        _exportStatus.value =
+            if (text == null) "Couldn't transcribe (no recognizable handwriting / model)"
+            else "Transcribed ${text.length} chars — now searchable"
+        delay(3_000)
+        _exportStatus.value = null
     }
 
     /** Export the page currently open in page detail to the user's selected sync target. */

@@ -1,5 +1,6 @@
 package com.inkvault.ui
 
+import android.provider.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -29,9 +30,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -53,13 +56,31 @@ import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** "Ink" in ink color + "Vault" in the gradient, Sora — the live wordmark (matches the mockup). */
+/**
+ * "Ink" in ink color + "Vault" in the gradient, Sora — the live wordmark (matches the mockup).
+ * [inkColor] defaults to the theme's onSurface so "Ink" reads dark-navy on light / near-white on
+ * dark (mockup `--ink` flips by theme); pass a fixed light color over an always-dark ground (splash).
+ */
 @Composable
-fun WordmarkText(fontSize: Int = 30) {
+fun WordmarkText(fontSize: Int = 30, inkColor: Color = MaterialTheme.colorScheme.onSurface) {
     val display = MaterialTheme.typography.displaySmall.copy(fontSize = fontSize.sp, fontWeight = FontWeight.ExtraBold)
     Row {
-        Text("Ink", style = display.copy(color = InkText))
+        Text("Ink", style = display.copy(color = inkColor))
         Text("Vault", style = display.copy(brush = Brush.linearGradient(InkGradientStops)))
+    }
+}
+
+/**
+ * True when the system "Remove animations" (accessibility / developer) setting is on — the platform
+ * zeroes [Settings.Global.ANIMATOR_DURATION_SCALE]. Compose infinite transitions don't honor it
+ * automatically, so gate decorative loops (FAB float, gradient pan) on this. The mockup honors
+ * prefers-reduced-motion the same way (line 243: animations off).
+ */
+@Composable
+fun rememberReducedMotion(): Boolean {
+    val resolver = LocalContext.current.contentResolver
+    return remember(resolver) {
+        Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
 }
 
@@ -98,7 +119,8 @@ fun VaultSplash(onDone: () -> Unit) {
                 modifier = Modifier.size(132.dp).scale(scale.value).alpha(markAlpha.value),
             )
             Spacer(Modifier.height(22.dp))
-            Box(Modifier.alpha(wordAlpha.value)) { WordmarkText(fontSize = 34) }
+            // Splash ground is always deep-navy regardless of theme → force the light ink color.
+            Box(Modifier.alpha(wordAlpha.value)) { WordmarkText(fontSize = 34, inkColor = InkText) }
         }
     }
 }

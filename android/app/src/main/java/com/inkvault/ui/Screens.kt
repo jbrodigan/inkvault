@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -157,6 +158,8 @@ import com.inkvault.ui.theme.LiveGreen
 import com.inkvault.ui.theme.NavyDeep
 import com.inkvault.ui.theme.InkTokens
 import com.inkvault.ui.theme.FabShape
+import com.inkvault.ui.theme.glow
+import com.inkvault.ui.theme.steelBorder
 import com.inkvault.ui.theme.freehandPath
 import com.inkvault.ui.theme.monoData
 import com.inkvault.ui.theme.monoEyebrow
@@ -269,15 +272,39 @@ fun InkApp(vm: InkViewModel) {
                         // Labeled (extended) so the teal button says what it does, not just "+".
                         val connected = pen is PenConnState.Connected
                         val label = if (connected) "New capture" else "Find a pen"
-                        // Gradient rounded-square FAB (mockup): transparent container + a gradient
-                        // background brush, white content.
+                        // v3 motion (mockup §motion): a gentle 3.8s vertical float + a 7s gradient
+                        // pan so the FAB reads "alive". Both go static under the system "remove
+                        // animations" setting (Compose infinite transitions ignore it on their own).
+                        val reduced = rememberReducedMotion()
+                        val fab = rememberInfiniteTransition(label = "fab")
+                        val floatY by fab.animateFloat(
+                            0f, if (reduced) 0f else -5f,
+                            infiniteRepeatable(tween(1900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                            label = "floatFab",
+                        )
+                        val pan by fab.animateFloat(
+                            0f, if (reduced) 0f else 1f,
+                            infiniteRepeatable(tween(3500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                            label = "gradPan",
+                        )
+                        // Gradient rounded-square FAB (mockup): transparent container + a panning
+                        // gradient brush, white content. span > FAB so the gradient slides visibly.
+                        val span = 320f
+                        val fabBrush = Brush.linearGradient(
+                            InkGradientStops,
+                            start = Offset(-span + pan * span, 0f),
+                            end = Offset(pan * span, span),
+                        )
                         ExtendedFloatingActionButton(
                             onClick = { if (connected) showLive = true else showScan = true },
                             shape = FabShape,
                             containerColor = Color.Transparent,
                             contentColor = Color.White,
                             elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
-                            modifier = Modifier.background(Brush.linearGradient(InkGradientStops), FabShape),
+                            modifier = Modifier
+                                .graphicsLayer { translationY = floatY.dp.toPx() }
+                                .glow(FabShape)
+                                .background(fabBrush, FabShape),
                             icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
                             text = { Text(label) },
                         )
@@ -469,7 +496,9 @@ private fun PenStatusCard(vm: InkViewModel, pen: PenConnState, onScan: () -> Uni
         is PenConnState.Disconnected -> Look(false, "No pen", "TAP TO CONNECT", cs.secondary, "Find a pen over Bluetooth", onScan)
     }
     Card(
-        Modifier.fillMaxWidth().padding(top = 4.dp).let { if (l.onTap != null) it.clickable { l.onTap!!() } else it },
+        Modifier.fillMaxWidth().padding(top = 4.dp).let { if (l.onTap != null) it.clickable { l.onTap!!() } else it }
+            .steelBorder(MaterialTheme.shapes.large),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = cs.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
@@ -668,11 +697,30 @@ private fun formatEta(min: Int): String = if (min < 60) "${min}m" else "${min / 
 @Composable
 private fun NibBadge(live: Boolean) {
     val cs = MaterialTheme.colorScheme
+    val reduced = rememberReducedMotion()
+    val t = rememberInfiniteTransition(label = "nib")
+    // Live → a ring pulses out from the nib dot (mockup .live .pulse, ~1.9s); static otherwise.
+    val ringScale by t.animateFloat(
+        1f, if (live && !reduced) 2.6f else 1f,
+        infiniteRepeatable(tween(1900), RepeatMode.Restart), label = "nibRing",
+    )
+    val ringAlpha by t.animateFloat(
+        if (live && !reduced) 0.5f else 0f, 0f,
+        infiniteRepeatable(tween(1900), RepeatMode.Restart), label = "nibRingAlpha",
+    )
+    val dotColor = if (live) cs.tertiary else cs.secondary
     Box(
         Modifier.size(38.dp).background(cs.primaryContainer, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(9.dp).background(if (live) cs.tertiary else cs.secondary, CircleShape))
+        if (live) {
+            Box(
+                Modifier.size(9.dp)
+                    .graphicsLayer { scaleX = ringScale; scaleY = ringScale; alpha = ringAlpha }
+                    .background(dotColor, CircleShape),
+            )
+        }
+        Box(Modifier.size(9.dp).background(dotColor, CircleShape))
     }
 }
 
@@ -1126,6 +1174,23 @@ private fun PageDetail(strokes: List<StrokeEntity>, vm: InkViewModel) {
         )
     }
     if (showAddEvent) AddEventDialog(vm, defaultTitle = "", onDismiss = { showAddEvent = false })
+    val showOcrDisclosure by vm.showOcrDisclosure.collectAsStateWithLifecycle()
+    if (showOcrDisclosure) {
+        AlertDialog(
+            onDismissRequest = { vm.dismissOcrDisclosure() },
+            title = { Text("Transcribe on this device?") },
+            text = {
+                Text(
+                    "On-device transcription uses Google's ML Kit handwriting recognition. Your " +
+                        "handwriting is recognized on your device and is never uploaded. The first " +
+                        "time, a one-time language model is downloaded from Google; after that no " +
+                        "further download is needed. (Your default OCR path stays your own NAS/OCR host.)",
+                )
+            },
+            confirmButton = { Button(onClick = { vm.confirmOcrDisclosure() }) { Text("Download & transcribe") } },
+            dismissButton = { TextButton(onClick = { vm.dismissOcrDisclosure() }) { Text("Cancel") } },
+        )
+    }
 }
 
 /**
@@ -1460,8 +1525,24 @@ private fun DrawScope.drawStrokes(
     selected: Set<String> = emptySet(),
     highlight: Color = base,
     brandInk: Color = base,
+    glowLast: Color? = null,
 ) {
     val fit = inkFit(strokes, points, size.width, size.height) ?: return
+    // Live capture: a soft halo under the newest stroke so fresh ink reads as "drawing on". Drawn
+    // first (under) and bounded to one stroke + two passes, so the crisp ink stays on top and the
+    // capture canvas takes no per-frame animation cost.
+    if (glowLast != null) {
+        strokes.lastOrNull()?.let { s ->
+            val raw = points(s)
+            if (raw.isNotEmpty()) {
+                val pts = raw.map { fit.map(it.x, it.y) }
+                val pr = raw.map { it.pressure }
+                val w = InkTokens.inkWidthBase.toPx() * s.width
+                drawPath(freehandPath(pts, pr, w * 3.0f), glowLast.copy(alpha = 0.10f))
+                drawPath(freehandPath(pts, pr, w * 2.0f), glowLast.copy(alpha = 0.16f))
+            }
+        }
+    }
     strokes.forEach { s ->
         val raw = points(s)
         if (raw.isEmpty()) return@forEach
@@ -1635,7 +1716,7 @@ private fun LiveCaptureScreen(vm: InkViewModel, onBack: () -> Unit) {
             ExpandingSizePicker(selected = inkWidth, onColor = cs0.onSurface, onSelect = vm::setInkWidth)
         }
         pageId?.let { RecordingsStrip(it, vm) }
-        InkSurface(strokes, vm, Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp))
+        InkSurface(strokes, vm, Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp), liveGlow = true)
 
         val lastPoints = strokes.lastOrNull()?.let { vm.strokesFlowOf(it) }.orEmpty()
         val lastPoint = lastPoints.lastOrNull()
@@ -1928,13 +2009,15 @@ private fun formatClock(ms: Long): String {
 /** Brass live dot with an expanding-ring pulse (design-system §8, 1.8s loop). */
 @Composable
 private fun LiveIndicator() {
+    val reduced = rememberReducedMotion()
     val t = rememberInfiniteTransition(label = "live")
+    // Reduced motion → ring stays at scale 1 / alpha 0 (invisible); the solid dot + LIVE pill remain.
     val scale by t.animateFloat(
-        initialValue = 1f, targetValue = 2.4f,
+        initialValue = 1f, targetValue = if (reduced) 1f else 2.4f,
         animationSpec = infiniteRepeatable(tween(1800), RepeatMode.Restart), label = "ring",
     )
     val alpha by t.animateFloat(
-        initialValue = 0.5f, targetValue = 0f,
+        initialValue = if (reduced) 0f else 0.5f, targetValue = 0f,
         animationSpec = infiniteRepeatable(tween(1800), RepeatMode.Restart), label = "ringAlpha",
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1953,7 +2036,13 @@ private fun LiveIndicator() {
 
 /** Read-only dot-grid ink surface — shared by live capture and the non-editing page view. */
 @Composable
-private fun InkSurface(strokes: List<StrokeEntity>, vm: InkViewModel, modifier: Modifier = Modifier, background: ImageBitmap? = null) {
+private fun InkSurface(
+    strokes: List<StrokeEntity>,
+    vm: InkViewModel,
+    modifier: Modifier = Modifier,
+    background: ImageBitmap? = null,
+    liveGlow: Boolean = false,
+) {
     val cs = MaterialTheme.colorScheme
     Card(
         modifier,
@@ -1963,7 +2052,7 @@ private fun InkSurface(strokes: List<StrokeEntity>, vm: InkViewModel, modifier: 
         val base = Modifier.fillMaxSize()
         Canvas(if (background == null) base.ncodeDotGrid(InkTokens.dotColor(cs.onBackground)) else base) {
             background?.let { drawPageBackground(it) }
-            drawStrokes(strokes, vm::strokesFlowOf, cs.primary, brandInk = cs.onSurface)
+            drawStrokes(strokes, vm::strokesFlowOf, cs.primary, brandInk = cs.onSurface, glowLast = if (liveGlow) cs.primary else null)
         }
     }
 }
