@@ -159,7 +159,7 @@ fun SettingsScreen(vm: InkViewModel, onBack: () -> Unit, onOpenCaptureLab: () ->
                         value = endpoint,
                         onValueChange = vm::setTailscaleEndpoint,
                         label = { Text("NAS endpoint URL") },
-                        placeholder = { Text("https://<truenas-tailscale-ip>:<port>/ingest") },
+                        placeholder = { Text("https://<host>.<tailnet>.ts.net/ingest") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -191,7 +191,7 @@ fun SettingsScreen(vm: InkViewModel, onBack: () -> Unit, onOpenCaptureLab: () ->
                     value = translateEndpoint,
                     onValueChange = vm::setTranslateEndpoint,
                     label = { Text("Translation endpoint (OpenAI-compatible)") },
-                    placeholder = { Text("http://ocr-host.lan:11434") },
+                    placeholder = { Text("https://ocr-host.<tailnet>.ts.net") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )

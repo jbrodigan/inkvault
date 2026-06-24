@@ -52,6 +52,12 @@ abuse) your GPU. Harden it:
   the OCR host on `tcp:11434`; deny-by-default elsewhere. (Tailscale grants supersede legacy ACLs.)
 - **Backups:** back `tank/inkvault` with a **Periodic Snapshot + Replication** task (3-2-1; an
   encrypted off-box/cloud copy of the curated dataset), not just local snapshots.
+- **App transport (Network Security Config):** the InkVault app blocks cleartext HTTP by default, so
+  point its OCR/translation endpoints (Settings) at the HTTPS `https://<host>.<tailnet>.ts.net` name
+  that `tailscale serve` exposes — a real Let's Encrypt cert Android trusts natively, no pinning. To
+  stay on plain HTTP instead, uncomment the scoped override in
+  `app/src/main/res/xml/network_security_config.xml` (one host) and rebuild; Tailscale already
+  encrypts the wire, so it's confidential either way.
 
 ## Stage 3 — Watcher (NAS) — after the data pool exists
 
