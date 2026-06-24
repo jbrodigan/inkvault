@@ -11,9 +11,13 @@ object PenNotifications {
     const val ALERT_CHANNEL_NAME = "Pen alerts"
     const val ALERT_NOTIF_ID = 1002
     const val BATTERY_NOTIF_ID = 1003
+    const val STALL_NOTIF_ID = 1004
 
     /** Low battery (not charging) — actionable, on the alert channel. Pure. */
     fun batteryWarningText(percent: Int): String = "Pen at $percent% — charge it before you need it"
+
+    /** Capture stalled while the pen is down — actionable, on the alert channel. Pure. */
+    fun stallText(): String = "Pen is down but no ink is arriving — lift and write again, or reconnect."
 
     /** Pure function (no Android deps) → unit-testable. Drives the persistent notification text. */
     fun statusText(state: PenConnState): String = when (state) {
