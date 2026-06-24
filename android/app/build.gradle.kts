@@ -142,3 +142,33 @@ dependencies {
     androidTestImplementation("com.google.truth:truth:1.4.4")
     androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }
+
+// --- Privacy guardrail: no telemetry, enforced at build time (DESIGN.md hard rule) ---
+// ML Kit's plumbing (firebase-components/encoders/annotations, datatransport) is allowed: it's DI +
+// the transport layer, and ML Kit's own usage logging is already disabled in the manifest
+// (firebase_data_collection_default_enabled=false). What must NEVER enter the runtime classpath is an
+// actual analytics / crash-reporting / ads / measurement SDK. CI runs `:app:verifyNoTelemetry`.
+val telemetryBlocklist = listOf(
+    "firebase-analytics", "firebase-crashlytics", "firebase-perf", "firebase-messaging",
+    "firebase-inappmessaging", "play-services-measurement", "play-services-ads",
+    "play-services-analytics", ":crashlytics", "appcenter", "io.sentry", "mixpanel",
+    "amplitude", "com.segment",
+)
+tasks.register("verifyNoTelemetry") {
+    group = "verification"
+    description = "Fail the build if a telemetry/analytics/ads dependency is on the app runtime classpath."
+    doLast {
+        val offenders = configurations.getByName("debugRuntimeClasspath")
+            .incoming.resolutionResult.allComponents
+            .map { it.id.displayName }
+            .filter { id -> telemetryBlocklist.any { id.contains(it, ignoreCase = true) } }
+            .distinct().sorted()
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "no-telemetry rule violated — these dependencies report to a third party:\n  " +
+                    offenders.joinToString("\n  "),
+            )
+        }
+        logger.lifecycle("verifyNoTelemetry: clean — no analytics/crash/ads SDK on the runtime classpath.")
+    }
+}
