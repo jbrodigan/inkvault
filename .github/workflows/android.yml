@@ -48,6 +48,9 @@ jobs:
       - name: Unit tests (no device, no hardware)
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
+      - name: Verify no telemetry (privacy guardrail — DESIGN.md hard rule)
+        run: ./gradlew :app:verifyNoTelemetry --stacktrace
+
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
