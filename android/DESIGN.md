@@ -5,18 +5,24 @@ replaces NeoLAB's "Neo Studio 2" for **capture, storage, and export**. Data live
 first as the source of truth**, then syncs to **destinations the user explicitly selects** — own
 infrastructure (NAS over Tailscale / a SAF folder watched by Syncthing) **or a cloud provider the
 user picks** (Drive, Dropbox, OneDrive, WebDAV, S3). Transcription is handed to an external OCR
-the user runs (self-hosted vision model), never in-app.
+the user runs (self-hosted vision model) **by default** — within your own network (NAS over
+Tailscale); an explicit, opt-in on-device path also exists (see Phase 4).
 
 > **Hard rule (the only privacy absolute):** no tracking, no telemetry, no ads. Outbound network
 > is allowed **only** to the sync/OCR targets the user explicitly selects; no other outbound
 > activity. Privacy is a per-target choice the user makes, not a hardcoded "no cloud" limit.
+> *(One disclosed carve-out: the optional, opt-in on-device ML Kit features (OCR/translate) fetch a
+> one-time model from Google the first time the user invokes them — never automatically, never in the
+> background.)*
 >
 > *(Brief history: the master brief originally said "no cloud / self-hosted only," so cloud sync
 > code was removed; the brief was then revised to allow user-selected cloud targets via a
 > pluggable provider abstraction. This doc reflects the revised brief.)*
 
-> **Status: Phase 0 (de-risk). Not past the gate.** The dual-pen GO/NO-GO spike must run on
-> real hardware before Phase 1. See "GO/NO-GO" and "Open items".
+> **Status: Phase 0 GO/NO-GO cleared (LAMY NWP-F80 = GO, verified on hardware 2026-06-21).**
+> Phases 1–5 are built and unit-tested against fakes; the remaining hardware step is Phase 1's
+> real-pen validation — one real capture (to replace the synthetic replay fixture) plus running
+> `NeoSdkAdapter` on a real pen. See "GO/NO-GO" and "Open items".
 
 ---
 
@@ -129,9 +135,10 @@ twist;  int sectionId, ownerId, noteId, pageId;  int color;  String macAddress;`
   (MinIO/B2/AWS/Wasabi). *(Cloud per-provider auth/scope/secret-storage spec is **not yet
   provided** — see "Phase 3–4 spec" gap note; don't invent it.)*
 - **OCR hand-off = "OCR trigger" dropdown** (Phase 4): NAS watcher (**default**, app does no OCR,
-  just exports + tags metadata for an external watcher), In-app (background worker POSTs the page
-  image to a configurable endpoint/backend/model, stores verbatim transcript), or Off. No
-  embedded/on-device OCR.
+  just exports + tags metadata for an external watcher within your own network), In-app (background
+  worker POSTs the page image to a configurable endpoint/backend/model, stores verbatim transcript),
+  or Off. Plus an explicit **opt-in On-device** path (`ocr/OnDeviceInk`, ML Kit Digital Ink — off by
+  default; tapping "Transcribe on device" downloads a one-time ML Kit model from Google, disclosed).
 
 ## Configuration keys
 
@@ -142,9 +149,10 @@ hardcode or invent a value; unknowns get a documented default in that file.
 
 ## Phased plan & TODO
 
-- [~] **Phase 0 — Foundation & de-risk.** Study SDK ✅ (surface above). Modernize build
-  (in progress). **Dual-pen connection spike** → `:app` `PenConnectSpikeActivity` (verified
-  API, hardware-gated). **GO/NO-GO on LAMY NWP-F80 = PENDING (needs hardware).** ← **STOP HERE.**
+- [x] **Phase 0 — Foundation & de-risk.** Study SDK ✅ (surface above). Modern build ✅.
+  **Dual-pen connection spike** → `:app` `PenConnectSpikeActivity` (fake-driven) plus the real-SDK
+  `:penspike` spike (built; excluded from CI until the SDK AAR is present). **GO/NO-GO on LAMY
+  NWP-F80 = GO (verified on hardware 2026-06-21).** Phase 1's real-hardware validation is the next gate.
 - [~] **Phase 1 — MVP capture.** Live strokes → Room → render: in place from the foundation.
   **Foreground BLE service done** (`pen/PenForegroundService`, type `connectedDevice`): owns the
   connection, mirrors `PenConnState` in a persistent notification, delegates auto-reconnect to
@@ -174,7 +182,8 @@ hardcode or invent a value; unknowns get a documented default in that file.
   hardware.*
 - [~] **Phase 4 — OCR-trigger dropdown.** NAS-watcher path **built end-to-end (vs fakes, CI-green):**
   export tags the sidecar + writes PNG/InkML for the external watcher; `ocr/TranscriptImporter`
-  pulls `<pageId>.txt` back; transcripts are stored (Room v8) and re-queue the page so its Markdown
+  pulls `<pageId>.txt` back; transcripts are stored (Room v9 — an FTS4 porter index `page_fts` over
+  transcripts, added by `MIGRATION_8_9`, validated by the instrumented `FtsMigrationTest`) and re-queue the page so its Markdown
   refreshes; **Search** (`ui/SearchScreen`) matches notebook titles + transcripts + recents. The
   watcher + full deploy plan live in `tools/` (`ocr_watcher.py`, `OCR_DEPLOY.md`,
   `setup-ocr-host.fish`, `qwen3-vl-ocr.Modelfile`, `ocr-watcher.compose.yaml`,
@@ -183,7 +192,28 @@ hardcode or invent a value; unknowns get a documented default in that file.
 - [~] **Phase 5 — Editing & search.** **Done (vs fakes):** lasso-select (≥60%-inside precision),
   recolor/resize/delete, **undo of edits** (inverse-op stack), pen-width Fine/Medium/Large, and
   search over notebook titles + transcripts + recent pages.
-- [ ] **Phase 6 — Optional.** Planner/calendar mapping; multi-device niceties.
+- [ ] **Phase 6 — Optional.** Planner/calendar mapping; multi-device niceties. **Calendar event
+  creation is already built** (`calendar/CalendarGateway` + `ui/CalendarUi`, local `CalendarContract`,
+  no network) — ahead of plan; the planner page→date mapping is still pending data.
+
+### Built beyond the documented phases (fold these into the plan)
+These ship in the code but the phase list above never specified them:
+- **Audio "pencast"** — `audio/RecordingController` (MediaRecorder/MediaPlayer) + `audio/Pencast`
+  (shared-wall-clock stroke↔audio sync), `ListenCanvas` playback.
+- **Action zones** — `zones/ActionZone(Store)` + `ui/ActionZoneUi`: tap a printed icon (calibrated by
+  circling it) to fire Share/Email × PNG/PDF; wired through `StrokeIngestor`.
+- **Translate** — `translate/Translator`: ML Kit language-id + a user-configured LLM POST, with an
+  ML Kit on-device translate fallback. Note: ML Kit downloads a one-time model from Google on first
+  use — disclose this (same opt-in treatment as on-device OCR).
+- **On-device OCR** — `ocr/OnDeviceInk` (ML Kit Digital Ink), an explicit **opt-in** "Transcribe on
+  device" action (off by default; the default OCR path is the NAS watcher). First use downloads a
+  one-time ML Kit model from Google — disclose it (planned: a first-use confirmation dialog).
+- **Per-notebook backgrounds** — `background/BackgroundStore` (template image per notebook).
+- **Implemented but NOT wired (intentional staging — keep):** the `$P/$Q` `gesture/UnistrokeRecognizer`
+  and `gesture/HotZone` margin-gesture package, and `text/AutoTitle` (no `PageEntity.title` field yet).
+  Kept for future wiring, not dead weight. *(Distinct from the 2026-Planner measurement path, which is
+  already wired — `ui/CaptureLabScreen` + `capture/CaptureLog` + `NotebookType.PLANNER_2026` geometry
+  awaiting your traced measurements — a data edit, not code.)*
 
 ### Phase 3–4 spec (Settings + dropdowns) — GATED: build only after Phase 0 GO/NO-GO + Phase 1 + Phase 2
 From the "Implementation Order: Settings Screen + Sync-Method & OCR-Trigger Dropdowns" doc.
@@ -227,7 +257,7 @@ assignment** (persisted by book id in DataStore via the new-notebook dialog) win
 **built-in defaults** (`NotebookType.forBook`); an unknown product falls back to flat page-UUID
 naming so export never blocks. Pure parts are unit-tested (`NotebookPathsTest`).
 
-- **Calibration.** Ncode units → mm is `ExportArtifacts.MM_PER_UNIT = 2.32` (isotropic; ≈3.81 u/cm,
+- **Calibration.** Ncode units → mm is `ExportArtifacts.MM_PER_UNIT = 2.32` (isotropic; ≈4.32 u/cm,
   R²≈0.99), measured from ruler traces and cross-checked against the Professional sheet (13.75×21 cm)
   — the writable dot area can't exceed the paper, which refuted an earlier value. Re-derive any
   notebook with `tools/calibrate_ncode.py` (least-squares fit → mm/unit, lead-in/out intercept, R²,
@@ -302,7 +332,9 @@ user-selected sync/OCR targets — not a blanket "no cloud."
   `dl.google.com` — the Android SDK download *and* Google Maven both 403. To build there instead,
   widen the environment's network policy to allow Google's Android hosts.)
 - **Replay harness** (`pen/replay/ReplayPenSource` + `ReplayPipelineTest` + a `.jsonl` fixture):
-  feeds recorded **real** pen data through the exact live capture pipeline. Capture once per pen
+  feeds recorded pen data through the exact live capture pipeline. *(The only fixture so far is
+  synthetic — `sample_session.jsonl` — so this does not yet exercise real-pen data; replacing it with
+  a real capture is the open hardware step.)* Capture once per pen
   (Phase 0 spike → `adb logcat -s SPIKE` → convert to `app/src/test/resources/replay/*.jsonl`),
   and every pipeline check afterward is automated — no hardware.
 - **What still needs hardware, once:** the physical-pen GO/NO-GO and the initial real capture.
