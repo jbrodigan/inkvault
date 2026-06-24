@@ -40,7 +40,7 @@ jobs:
           build-mode: none
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     # --- java-kotlin manual build prerequisites (mirrors .github/workflows/android.yml) ---
     - name: Set up JDK 17
