@@ -1,6 +1,7 @@
 package com.inkvault.ui
 
 import android.content.Intent
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -11,10 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -31,6 +35,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -44,9 +49,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.inkvault.export.SyncMethod
 import com.inkvault.export.ThemeMode
+import com.inkvault.pen.BatteryOptimization
 import com.inkvault.pen.FirmwareUpdateState
 import com.inkvault.pen.PasswordOpState
 import com.inkvault.pen.PenConnState
@@ -108,6 +117,9 @@ fun SettingsScreen(vm: InkViewModel, onBack: () -> Unit, onOpenCaptureLab: () ->
                 )
             }
         }
+
+        item { SectionLabel("Capture reliability") }
+        item { CaptureReliabilityCard() }
 
         item { SectionLabel("Sync") }
         item {
@@ -447,6 +459,77 @@ private fun PasswordOpDialog(
         },
         dismissButton = { TextButton(enabled = !working, onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/**
+ * Capture reliability (brief FIX #2). The pen foreground service keeps capture alive in the
+ * background, but the OS can still throttle or kill it unless the app is battery-exempt — One UI is
+ * the most aggressive. Surface the exemption status, route to the OS setting in one tap, and (on
+ * Samsung) name the "Never sleeping apps" path. Re-checks on resume so the status refreshes when the
+ * user returns from settings. See [BatteryOptimization].
+ */
+@Composable
+private fun CaptureReliabilityCard() {
+    val cs = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val owner = LocalLifecycleOwner.current
+    var ignoring by remember { mutableStateOf(BatteryOptimization.isIgnoring(context)) }
+    DisposableEffect(owner) {
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) ignoring = BatteryOptimization.isIgnoring(context)
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+    SettingsCard {
+        Column(Modifier.padding(vertical = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (ignoring) Icons.Outlined.CheckCircle else Icons.Outlined.WarningAmber,
+                    contentDescription = null,
+                    tint = if (ignoring) cs.primary else cs.error,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    if (ignoring) "Background capture allowed" else "Background capture may be paused",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            Text(
+                if (ignoring) {
+                    "InkVault is exempt from battery optimization, so the pen stays connected and " +
+                        "pages keep saving while the app is in the background."
+                } else {
+                    "Your device may sleep InkVault in the background — dropping the pen and pausing " +
+                        "capture until you reopen it. Allow background activity to keep strokes saving."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            if (ignoring) {
+                OutlinedButton(
+                    onClick = { BatteryOptimization.openSettings(context) },
+                    modifier = Modifier.padding(top = 12.dp),
+                ) { Text("Battery settings") }
+            } else {
+                Button(
+                    onClick = { BatteryOptimization.openSettings(context) },
+                    modifier = Modifier.padding(top = 12.dp),
+                ) { Text("Allow background capture") }
+            }
+            if (samsung) {
+                Text(
+                    "One UI also has \"Never sleeping apps\": Settings → Battery → Background " +
+                        "usage limits → Never sleeping apps → add InkVault.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable
