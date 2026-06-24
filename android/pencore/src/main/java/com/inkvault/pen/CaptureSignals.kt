@@ -47,4 +47,14 @@ class CaptureSignals(private val now: () -> Long = System::currentTimeMillis) {
         val t = _lastDotAt.value
         return t > 0 && now() - t < windowMs
     }
+
+    /**
+     * Pen tip is down (being written with) but no dot has arrived within [thresholdMs] — the ink
+     * stream has silently stalled mid-stroke. Distinct from idle, which is pen-up ([penDown] false).
+     * The pure decision behind the foreground service's silent-capture watchdog.
+     */
+    fun isStalled(thresholdMs: Long = 4_000): Boolean {
+        val t = _lastDotAt.value
+        return _penDown.value && t > 0 && now() - t >= thresholdMs
+    }
 }

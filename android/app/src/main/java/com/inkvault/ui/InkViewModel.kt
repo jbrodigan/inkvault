@@ -290,6 +290,11 @@ class InkViewModel(
         settings.rememberPassword.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     fun setRememberPassword(on: Boolean) = viewModelScope.launch { settings.setRememberPassword(on) }
 
+    /** First-connect "allow background capture" nudge — true once shown/dismissed, so it asks once. */
+    val bgCaptureNudgeDismissed: StateFlow<Boolean> =
+        settings.bgCaptureNudgeDismissed.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    fun dismissBgCaptureNudge() = viewModelScope.launch { settings.dismissBgCaptureNudge() }
+
     /** Result of an in-flight change/disable-password request (drives the Settings feedback). */
     val passwordOp: StateFlow<com.inkvault.pen.PasswordOpState> = penManager.passwordOp
     fun changePenPassword(old: String, new: String) = penManager.changePassword(old, new)

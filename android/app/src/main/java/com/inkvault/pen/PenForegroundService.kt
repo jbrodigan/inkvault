@@ -19,7 +19,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -88,6 +90,31 @@ class PenForegroundService : Service() {
                     // Silent ongoing notification (stays up while disconnected so the user can scan).
                     notificationManager().notify(PenNotifications.NOTIF_ID, buildCaptureNotification(state, status))
                 }
+        }
+        // Silent-capture watchdog: the tip is down (being written with) but dots stopped arriving →
+        // the ink stream stalled mid-stroke. Distinct from idle (pen-up = no alarm). Polls only while
+        // the pen is down; clears the instant ink resumes or the pen lifts. The pure, unit-tested
+        // decision is CaptureSignals.isStalled.
+        scope.launch {
+            sl.captureSignals.penDown.collectLatest { down ->
+                if (!down) {
+                    notificationManager().cancel(PenNotifications.STALL_NOTIF_ID)
+                    return@collectLatest
+                }
+                var warned = false
+                while (true) {
+                    delay(STALL_POLL_MS)
+                    val stalled = sl.captureSignals.isStalled(STALL_MS) &&
+                        penManager.state.value is PenConnState.Connected
+                    if (stalled && !warned) {
+                        warned = true
+                        notificationManager().notify(PenNotifications.STALL_NOTIF_ID, buildStallWarning())
+                    } else if (!stalled && warned) {
+                        warned = false
+                        notificationManager().cancel(PenNotifications.STALL_NOTIF_ID)
+                    }
+                }
+            }
         }
     }
 
@@ -198,6 +225,18 @@ class PenForegroundService : Service() {
             .setContentIntent(openAppIntent())
             .build()
 
+    /** Silent-capture stall: pen down but no ink arriving. Auto-clears on resume/lift. */
+    private fun buildStallWarning(): Notification =
+        NotificationCompat.Builder(this, PenNotifications.ALERT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setContentTitle("Capture may have stalled")
+            .setContentText(PenNotifications.stallText())
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent())
+            .build()
+
     private fun createChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Silent, low-importance: the ongoing capture state.
@@ -221,6 +260,10 @@ class PenForegroundService : Service() {
         private const val EXTRA_MAC = "mac"
         private const val LOW_BATTERY_PCT = 15
         private const val LOW_BATTERY_CLEAR_PCT = 20
+        // Watchdog: how long the tip can be down with no dot before we flag a silent stall, and how
+        // often to re-check while down. Generous, to avoid false alarms on a brief mid-stroke pause.
+        private const val STALL_MS = 4_000L
+        private const val STALL_POLL_MS = 1_000L
 
         /** Start capture. Call from a foreground Activity with BLE permissions already granted. */
         fun start(context: Context, macAddress: String? = null) {

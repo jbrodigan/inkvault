@@ -49,6 +49,7 @@ class SettingsStore(private val context: Context) {
     private val themeModeKey = stringPreferencesKey("ui.theme")
     private val rememberPasswordKey = booleanPreferencesKey("pen.remember_password")
     private val onDeviceOcrAckKey = booleanPreferencesKey("ocr.on_device.acknowledged")
+    private val bgCaptureNudgeDismissedKey = booleanPreferencesKey("capture.bg_nudge_dismissed")
     private val calendarTargetIdKey = longPreferencesKey("calendar.target_id")
     private val translateEndpointKey = stringPreferencesKey("translate.endpoint")
     private val translateModelKey = stringPreferencesKey("translate.model")
@@ -70,6 +71,11 @@ class SettingsStore(private val context: Context) {
     val onDeviceOcrAcknowledged: Flow<Boolean> =
         context.settingsDataStore.data.map { it[onDeviceOcrAckKey] ?: false }
     suspend fun acknowledgeOnDeviceOcr() = edit { it[onDeviceOcrAckKey] = true }
+
+    /** Whether the first-connect "allow background capture" nudge has already been shown/dismissed. */
+    val bgCaptureNudgeDismissed: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[bgCaptureNudgeDismissedKey] ?: false }
+    suspend fun dismissBgCaptureNudge() = edit { it[bgCaptureNudgeDismissedKey] = true }
 
     /** The device calendar new events are added to (-1 = none chosen yet). */
     val calendarTargetId: Flow<Long> =
