@@ -49,6 +49,7 @@ class SettingsStore(private val context: Context) {
     private val themeModeKey = stringPreferencesKey("ui.theme")
     private val rememberPasswordKey = booleanPreferencesKey("pen.remember_password")
     private val onDeviceOcrAckKey = booleanPreferencesKey("ocr.on_device.acknowledged")
+    private val onDeviceOcrEnabledKey = booleanPreferencesKey("ocr.on_device.enabled")
     private val bgCaptureNudgeDismissedKey = booleanPreferencesKey("capture.bg_nudge_dismissed")
     private val calendarTargetIdKey = longPreferencesKey("calendar.target_id")
     private val translateEndpointKey = stringPreferencesKey("translate.endpoint")
@@ -71,6 +72,17 @@ class SettingsStore(private val context: Context) {
     val onDeviceOcrAcknowledged: Flow<Boolean> =
         context.settingsDataStore.data.map { it[onDeviceOcrAckKey] ?: false }
     suspend fun acknowledgeOnDeviceOcr() = edit { it[onDeviceOcrAckKey] = true }
+
+    /**
+     * Master switch for on-device (ML Kit) transcription. Default ON — the per-use disclosure still
+     * gates first use; turn OFF to keep transcription on the NAS/OCR host only.
+     */
+    val onDeviceOcrEnabled: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[onDeviceOcrEnabledKey] ?: true }
+    suspend fun setOnDeviceOcrEnabled(on: Boolean) = edit { it[onDeviceOcrEnabledKey] = on }
+
+    /** Re-arm the first-use on-device OCR disclosure so it prompts again. */
+    suspend fun resetOnDeviceOcrDisclosure() = edit { it[onDeviceOcrAckKey] = false }
 
     /** Whether the first-connect "allow background capture" nudge has already been shown/dismissed. */
     val bgCaptureNudgeDismissed: Flow<Boolean> =

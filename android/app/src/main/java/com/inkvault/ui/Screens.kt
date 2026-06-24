@@ -961,6 +961,8 @@ private fun PageDetail(strokes: List<StrokeEntity>, vm: InkViewModel) {
     var listening by remember { mutableStateOf(false) }
     var textView by remember { mutableStateOf(false) }
     val transcript by vm.currentTranscript.collectAsStateWithLifecycle()
+    val ocrEnabled by vm.onDeviceOcrEnabled.collectAsStateWithLifecycle()
+    val ocrAllowed = vm.onDeviceOcrAvailable && ocrEnabled
     var lassoMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedRecId by remember { mutableStateOf<String?>(null) }
@@ -1043,7 +1045,7 @@ private fun PageDetail(strokes: List<StrokeEntity>, vm: InkViewModel) {
                                 enabled = strokes.isNotEmpty(),
                                 onClick = { more = false; printPage(context, "InkVault page", strokes, vm::strokesFlowOf) },
                             )
-                            if (vm.onDeviceOcrAvailable) {
+                            if (ocrAllowed) {
                                 DropdownMenuItem(
                                     text = { Text("Transcribe on device") },
                                     leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) },
@@ -1090,7 +1092,7 @@ private fun PageDetail(strokes: List<StrokeEntity>, vm: InkViewModel) {
                     PageTextView(
                         transcript = transcript,
                         onTranscribe = { vm.transcribeCurrentPageOnDevice() },
-                        canTranscribe = vm.onDeviceOcrAvailable && strokes.isNotEmpty(),
+                        canTranscribe = ocrAllowed && strokes.isNotEmpty(),
                         translatorAvailable = vm.translatorAvailable,
                         defaultTarget = vm.deviceLanguage,
                         translationText = tr?.text,
