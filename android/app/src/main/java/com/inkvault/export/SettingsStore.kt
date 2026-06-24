@@ -48,6 +48,7 @@ class SettingsStore(private val context: Context) {
     private val tailscaleEndpointKey = stringPreferencesKey("sync.tailscale.endpoint")
     private val themeModeKey = stringPreferencesKey("ui.theme")
     private val rememberPasswordKey = booleanPreferencesKey("pen.remember_password")
+    private val bgCaptureNudgeDismissedKey = booleanPreferencesKey("capture.bg_nudge_dismissed")
     private val calendarTargetIdKey = longPreferencesKey("calendar.target_id")
     private val translateEndpointKey = stringPreferencesKey("translate.endpoint")
     private val translateModelKey = stringPreferencesKey("translate.model")
@@ -60,6 +61,11 @@ class SettingsStore(private val context: Context) {
     val rememberPassword: Flow<Boolean> =
         context.settingsDataStore.data.map { it[rememberPasswordKey] ?: false }
     suspend fun setRememberPassword(on: Boolean) = edit { it[rememberPasswordKey] = on }
+
+    /** Whether the first-connect "allow background capture" nudge has already been shown/dismissed. */
+    val bgCaptureNudgeDismissed: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[bgCaptureNudgeDismissedKey] ?: false }
+    suspend fun dismissBgCaptureNudge() = edit { it[bgCaptureNudgeDismissedKey] = true }
 
     /** The device calendar new events are added to (-1 = none chosen yet). */
     val calendarTargetId: Flow<Long> =

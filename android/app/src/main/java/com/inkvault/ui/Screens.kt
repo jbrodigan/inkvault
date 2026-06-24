@@ -152,6 +152,7 @@ import com.inkvault.pen.PenConnState
 import com.inkvault.share.PageRender
 import com.inkvault.ui.theme.InkGradientStops
 import com.inkvault.ui.theme.InkText
+import com.inkvault.pen.BatteryOptimization
 import com.inkvault.ui.theme.LiveGreen
 import com.inkvault.ui.theme.NavyDeep
 import com.inkvault.ui.theme.InkTokens
@@ -219,6 +220,23 @@ fun InkApp(vm: InkViewModel) {
             defaultTypeId = vm.resolvedTypeId(nb.book),
             onSave = { typeId, label -> vm.setUpNotebook(nb.id, nb.book, typeId, label) },
             onSkip = { vm.skipNotebookSetup(nb.id) },
+        )
+    }
+    // First-connect nudge (FIX #2): when a pen connects while the app isn't battery-exempt, prompt
+    // once to allow background capture. Dismissible + persisted, so it asks only once; the Settings
+    // "Capture reliability" card is the permanent path.
+    val nudgeCtx = LocalContext.current
+    val bgNudgeDismissed by vm.bgCaptureNudgeDismissed.collectAsStateWithLifecycle()
+    var showBgNudge by remember { mutableStateOf(false) }
+    LaunchedEffect(pen, bgNudgeDismissed) {
+        if (pen is PenConnState.Connected && !bgNudgeDismissed && !BatteryOptimization.isIgnoring(nudgeCtx)) {
+            showBgNudge = true
+        }
+    }
+    if (showBgNudge) {
+        BackgroundCaptureNudgeDialog(
+            onAllow = { showBgNudge = false; vm.dismissBgCaptureNudge(); BatteryOptimization.openSettings(nudgeCtx) },
+            onDismiss = { showBgNudge = false; vm.dismissBgCaptureNudge() },
         )
     }
     if (showExitPrompt) {
@@ -2028,6 +2046,25 @@ private fun ScanScreen(vm: InkViewModel, onBack: () -> Unit) {
                 }
         }
     }
+}
+
+/** First-connect nudge (FIX #2) to allow background capture — once, dismissible. */
+@Composable
+private fun BackgroundCaptureNudgeDialog(onAllow: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Keep capturing in the background?", style = MaterialTheme.typography.headlineSmall) },
+        text = {
+            Text(
+                "Your device may sleep InkVault when it's not on screen — dropping the pen and " +
+                    "pausing capture. Allow background activity so your strokes keep saving even with " +
+                    "the app in the background.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        confirmButton = { Button(onClick = onAllow) { Text("Allow") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Not now") } },
+    )
 }
 
 /** Confirm before leaving the app (the OS Back at the root), so it isn't an accidental exit. */
