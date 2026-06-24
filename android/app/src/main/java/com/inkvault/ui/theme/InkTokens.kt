@@ -120,14 +120,19 @@ fun freehandPath(points: List<Offset>, pressures: List<Float>, width: Float): Pa
 }
 
 /**
- * The "vault frame" 1dp steel-hairline border (§5): a brushed-steel gradient edge over the surface
- * fill, ~135° so it catches light at the corner. On light theme steel reads heavy on white, so it
- * softens to a flat `outlineVariant` hairline.
+ * The "vault frame" steel-hairline border — v3 "rim" (§5): a brushed-steel bezel that catches light
+ * at the corners — a faint white highlight, into steel, into steel-deep, back to a faint highlight,
+ * ~140°. On light theme steel reads heavy on white, so it softens to a flat `outlineVariant` hairline.
  */
 @Composable
 fun Modifier.steelBorder(shape: Shape, width: Dp = 1.dp): Modifier {
     val brush = if (isSystemInDarkTheme()) {
-        Brush.linearGradient(listOf(SteelL, SteelM, SteelD))
+        Brush.linearGradient(
+            0.00f to Color.White.copy(alpha = 0.54f),
+            0.36f to SteelM.copy(alpha = 0.22f),
+            0.70f to SteelD.copy(alpha = 0.34f),
+            1.00f to Color.White.copy(alpha = 0.18f),
+        )
     } else {
         SolidColor(MaterialTheme.colorScheme.outlineVariant)
     }
