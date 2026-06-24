@@ -33,6 +33,26 @@ build triggers a redundant pull.
 > **VRAM (16 GB):** 8B q4 weights ≈ 6 GB + 32K KV at q8/flash-attn + image tokens → comfortably
 > under 16 GB at `NUM_PARALLEL=1`. If a dense page ever OOMs, cap image size (OCR_PIPELINE.md Stage 6).
 
+> **Higher-accuracy alternative (2026):** Ollama is fine, and the explicit `num_ctx 32768` above
+> already defeats its silent context truncation on long pages. If messy-cursive accuracy matters
+> more, serve **olmOCR-2-7B (FP8)** or **Qwen3-VL-8B-FP8** on **vLLM** instead — OpenAI-compatible,
+> real batching/KV-cache, explicit `--max-model-len`, no silent truncation. Render pages to ~1288 px
+> on the long side for the best image-token tradeoff. Keep the OpenAI endpoint shape so the app and
+> watcher don't change.
+
+## Security — the Ollama endpoint is unauthenticated by design
+`OLLAMA_HOST=0.0.0.0` exposes port 11434 with **no auth**: anyone on the LAN/tailnet can use (or
+abuse) your GPU. Harden it:
+- **Bind to the tailnet, not every interface:** set `OLLAMA_HOST` to the host's tailnet IP (or
+  `127.0.0.1` + `tailscale serve`) instead of `0.0.0.0`, so LAN devices can't reach it. The NAS
+  watcher reaches it over the tailnet either way.
+- **Front it with `tailscale serve`** (auto-TLS + injects identity headers) or a tiny auth reverse
+  proxy, so a tailnet device can't hit raw 11434 without passing identity.
+- **Least-privilege grant:** allow only the watcher host + your phone/tablet (by tag/user) to reach
+  the OCR host on `tcp:11434`; deny-by-default elsewhere. (Tailscale grants supersede legacy ACLs.)
+- **Backups:** back `tank/inkvault` with a **Periodic Snapshot + Replication** task (3-2-1; an
+  encrypted off-box/cloud copy of the curated dataset), not just local snapshots.
+
 ## Stage 3 — Watcher (NAS) — after the data pool exists
 
 The improved watcher (`ocr_watcher.py`) is already written: re-OCRs when a PNG is newer than its

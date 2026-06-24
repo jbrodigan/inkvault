@@ -128,6 +128,24 @@ def needs_ocr(png: str, out: str) -> bool:
         return True  # no .txt yet
 
 
+# Give a file Syncthing is mid-writing time to settle before we read it (its mtime keeps moving
+# while bytes land; once the transfer + atomic rename finish, mtime stops).
+SETTLE_SECONDS = int(os.environ.get("SETTLE_SECONDS", "12"))
+
+
+def ready_to_ocr(png: str) -> bool:
+    """Only OCR a page once its export is fully synced AND settled, so we never read a half-written
+    file or an incomplete page set. Requires the sibling `<base>.json` sidecar (the app writes it
+    last, and it's what maps the `.txt` back to the page), and that the newest of the .png/.json has
+    been unchanged for SETTLE_SECONDS."""
+    sidecar = png[:-4] + ".json"
+    try:
+        newest = max(os.path.getmtime(png), os.path.getmtime(sidecar))
+    except OSError:
+        return False  # no sidecar yet -> the page's export hasn't fully arrived
+    return (time.time() - newest) >= SETTLE_SECONDS
+
+
 def find_pngs(root: str) -> list:
     """All page PNGs under root, recursively — the app files pages in type/label sub-folders
     (pnb/Work/…, plnr/2026/06_June/…). Skips Syncthing temp/dot files and hidden dirs."""
@@ -135,7 +153,10 @@ def find_pngs(root: str) -> list:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if not d.startswith(".")]  # don't descend .stfolder etc.
         for fn in filenames:
-            if fn.lower().endswith(".png") and not fn.startswith("."):
+            # Skip Syncthing temp/dot files and *.sync-conflict-* copies (never OCR a conflict file).
+            if (fn.lower().endswith(".png")
+                    and not fn.startswith(".")
+                    and ".sync-conflict-" not in fn):
                 found.append(os.path.join(dirpath, fn))
     return sorted(found)
 
@@ -144,10 +165,13 @@ def run_pass(fails: dict) -> None:
     """One sweep of the folder. [fails] counts consecutive failures per page so a permanently-bad
     one (e.g. a corrupt PNG) is given up on after MAX_FAILS instead of retried every poll."""
     pngs = find_pngs(WATCH)
-    ok = failed = skipped = 0
+    ok = failed = skipped = waiting = 0
     for png in pngs:
         out = png[:-4] + ".txt"  # the .txt lands next to its .png, in the same sub-folder
         if not needs_ocr(png, out):
+            continue
+        if not ready_to_ocr(png):
+            waiting += 1  # export not fully synced/settled yet — retry next pass
             continue
         rel = os.path.relpath(png, WATCH)
         if fails.get(png, 0) >= MAX_FAILS:
@@ -167,8 +191,9 @@ def run_pass(fails: dict) -> None:
             failed += 1
             giving_up = " — giving up this session" if n >= MAX_FAILS else f" (attempt {n}/{MAX_FAILS})"
             print(f"err {rel}: {e}{giving_up}", file=sys.stderr, flush=True)
-    if ok or failed or skipped:  # quiet when there was nothing to do
-        print(f"pass: {ok} transcribed, {failed} failed, {skipped} skipped (of {len(pngs)} pages)", flush=True)
+    if ok or failed or skipped or waiting:  # quiet when there was nothing to do
+        print(f"pass: {ok} transcribed, {failed} failed, {skipped} skipped, {waiting} waiting "
+              f"(of {len(pngs)} pages)", flush=True)
 
 
 def main() -> None:
