@@ -31,7 +31,7 @@ jobs:
 
       - name: Set up Android SDK
         continue-on-error: true # setup-android@v3's sdkmanager flakes intermittently; the next step recovers
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Ensure SDK platform + licenses (resilient; retries the flaky sdkmanager)
         run: |
@@ -92,7 +92,7 @@ jobs:
 
       - name: Set up Android SDK
         continue-on-error: true # setup-android@v3's sdkmanager flakes intermittently; the next step recovers
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Ensure SDK platform + licenses (resilient; retries the flaky sdkmanager)
         run: |
