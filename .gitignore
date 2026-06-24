@@ -1,0 +1,4 @@
+
+# Python bytecode cache (from local tool runs)
+__pycache__/
+*.pyc

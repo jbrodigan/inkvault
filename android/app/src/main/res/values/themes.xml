@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose draws the UI; this base theme just hosts the activity. -->
+    <style name="Theme.InkVault" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

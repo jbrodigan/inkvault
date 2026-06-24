@@ -1,0 +1,17 @@
+# InkVault OCR model — bakes the settings the OpenAI HTTP path can't set per-request.
+#
+# WHY a custom model (OCR_PIPELINE.md, finding #1): Ollama defaults to num_ctx 2048, and a page
+# image blows past that → Qwen3-VL emits looping/garbled text. The /v1/chat/completions endpoint
+# can't override num_ctx, so the only reliable fix is to bake it into the model.
+#
+# Build (OCR host):  ollama create qwen3-vl-ocr -f qwen3-vl-ocr.Modelfile
+# The watcher then calls model `qwen3-vl-ocr`, guaranteeing 32K context on every request.
+
+# Reuse the tag you already pulled. Check `ollama list`; if yours is e.g. qwen3-vl:8b, change this.
+FROM qwen3-vl
+
+PARAMETER num_ctx 32768
+PARAMETER temperature 0
+
+# Belt to the watcher's <think>-stripping suspenders: qwen3-vl ignores think:false (finding #2).
+SYSTEM "You are a handwriting transcriber. Output ONLY the verbatim text of the page, preserving line breaks. No reasoning, no <think>, no commentary."

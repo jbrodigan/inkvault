@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- BLE. On API 31+ the SCAN/CONNECT runtime permissions replace location. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"
+        tools:targetApi="s" />
+
+    <!-- Legacy BLE (API < 31). -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <!-- The NeoLAB SDK's AAR declares this at maxSdkVersion=32; we cap it at 30 because our BLE
+         scanning uses BLUETOOTH_SCAN + neverForLocation on Android 12+. tools:replace makes ours win. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30"
+        tools:replace="android:maxSdkVersion" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Voice notes tied to a page (phone mic; audio stays in app-private storage, never uploaded). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Create events in the user's existing device calendars (Google/Outlook) via CalendarContract.
+         The app writes locally; the OS syncs to the account. No network calls from the app. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
+    <!-- Foreground service that owns the BLE pen connection (Phase 1, FIX #2). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
+        tools:targetApi="34" />
+
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+
+    <application
+        android:name=".InkVaultApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="InkVault"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.InkVault">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.InkVault">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Phase 0 de-risk spike. Launch via:
+             adb shell am start -n com.inkvault/.spike.PenConnectSpikeActivity -->
+        <activity
+            android:name=".spike.PenConnectSpikeActivity"
+            android:exported="true" />
+
+        <!-- Phase 1 — owns the BLE connection so capture survives backgrounding. -->
+        <service
+            android:name=".pen.PenForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <!-- Hands out cached PNG/PDF page renders as content:// URIs for Share / Email. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # Keep the CI action versions current (this is what surfaced the "Node 20 deprecated" warnings).
+  # Safe to auto-bump — it doesn't touch the app's dependency graph.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+
+  # NOTE: the Gradle ecosystem is deliberately NOT listed here. The app's versions are pinned in
+  # lockstep on purpose (16 KB .so alignment, Material 3 1.5.0-alpha, AGP↔Gradle↔Kotlin↔KSP), and
+  # proactive Dependabot version bumps would fight that and risk breaking the build. Vulnerable
+  # Gradle deps are instead handled by Dependabot *security* updates — enabled in repo Settings →
+  # Code security → "Dependabot security updates" — which only opens a PR on an actual advisory.

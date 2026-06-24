@@ -1,0 +1,30 @@
+# InkVault OCR watcher — TrueNAS SCALE Custom App. OCR_PIPELINE.md Stage 3b.
+#
+# Apps → Discover Apps → Custom App → "Install via YAML", paste this.
+#
+# Before installing:
+#   1. Create the data pool + dataset  tank/inkvault  (owner apps:apps = the NAS app's uid:gid, modify ACL).
+#   2. Put the watcher script somewhere OUTSIDE the synced folder so Syncthing never touches it:
+#        mkdir -p /mnt/tank/apps/ocr-watcher
+#        cp ocr_watcher.py /mnt/tank/apps/ocr-watcher/ocr_watcher.py
+#        chown -R <NAS_UID>:<NAS_GID> /mnt/tank/apps/ocr-watcher
+#   3. Set OCR_URL below to the OCR host's LAN IP (give it a DHCP reservation) or a local DNS rewrite
+#      ocr-host.lan → 192.168.X.X. The OCR host must already have OLLAMA_HOST=0.0.0.0 (Stage 1a)
+#      and the qwen3-vl-ocr model (Stage 1b).
+#
+# Logs:  the app's "Logs" tab (or `docker logs <container>`) shows e.g. `ok page-123 → 412 chars`.
+
+services:
+  ocr-watcher:
+    image: python:3.13-slim
+    restart: unless-stopped
+    user: "<NAS_UID>:<NAS_GID>"                  # TrueNAS apps run as the NAS app's uid:gid (finding #5)
+    environment:
+      - WATCH_DIR=/data
+      - OCR_URL=http://192.168.X.X:11434         # ← OCR host LAN IP (or http://ocr-host.lan:11434)
+      - OCR_MODEL=qwen3-vl-ocr
+      - POLL_SECONDS=15
+    volumes:
+      - /mnt/tank/inkvault:/data                 # the Syncthing-shared dataset (PNGs in, .txt out)
+      - /mnt/tank/apps/ocr-watcher/ocr_watcher.py:/ocr_watcher.py:ro
+    command: ["python", "/ocr_watcher.py"]
