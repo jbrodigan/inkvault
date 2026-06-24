@@ -111,14 +111,14 @@ dependencies {
 
     // On-device handwriting OCR straight from captured strokes (offline after a one-time model
     // download; no GPU/NAS). ML Kit Digital Ink consumes our X/Y/time pen data — see OnDeviceInk.
-    // STAY ON 18.1.0. Empirically (CI run on commit 5843169, a real 2m39s build) 19.0.0 *resolves*
-    // as a dependency but its `com.google.mlkit.vision.digitalink` package is gone — 29 unresolved-
-    // reference compile errors, all in OnDeviceInk.kt (DigitalInkRecognition, Ink, WritingArea, …).
-    // So the deep-research "bump to 19.0.0 for the 16 KB fix" lead is REFUTED by the build: 18.1.0
-    // is the last artifact that actually carries the digitalink API we compile against. The
-    // libdigitalink.so 16 KB-alignment liability (mlkit#938) therefore stays Google-side; we
-    // fail-soft (runCatching in OnDeviceInk) so OCR degrades gracefully rather than crashing.
-    implementation("com.google.mlkit:digital-ink-recognition:18.1.0")
+    // 19.0.0 is the 16 KB-page-aligned digital-ink artifact (libdigitalink.so LOAD align 0x4000 vs
+    // 18.1.0's 0x1000 — verified with readelf), resolving the mlkit#938 liability on Android 15+
+    // 16 KB-booted devices. NOTE: 19.0.0 did NOT remove the API — it REPACKAGED it from
+    // `com.google.mlkit.vision.digitalink.*` to `…vision.digitalink.recognition.*`. The earlier
+    // "package is gone, stay on 18.1.0" read was a misdiagnosis of the moved imports; OnDeviceInk
+    // imports the `.recognition` package and the fail-soft stays as defense-in-depth. Build + JVM
+    // unit tests pass on 19.0.0.
+    implementation("com.google.mlkit:digital-ink-recognition:19.0.0")
 
     // Translation: on-device language detection (source auto-detect) + the offline fallback engine.
     // The high-quality path is a translation LLM on the user's GPU box (HTTP); see Translator.
