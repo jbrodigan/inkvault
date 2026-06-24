@@ -43,7 +43,7 @@ jobs:
           done || echo "android-37 not in the sdkmanager channel; AGP will auto-download"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Unit tests (no device, no hardware)
         run: ./gradlew :app:testDebugUnitTest --stacktrace
@@ -104,7 +104,7 @@ jobs:
           done || echo "android-37 not in the sdkmanager channel; AGP will auto-download"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Instrumented tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
