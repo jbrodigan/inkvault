@@ -20,9 +20,10 @@ Pick a model and serve it with the OCR Ollama you already run:
 
 | Model | Pull | License | Notes |
 |---|---|---|---|
-| **EuroLLM-9B** | community GGUF → `ollama create eurollm -f Modelfile` | **Apache-2.0** ✅ | Recommended default — top open quality with a clean license; ~6 GB Q4, fits a CUDA GPU (≥16 GB VRAM) with room. |
-| **Tower+ 9B** (Unbabel) | community GGUF | CC-BY-NC-4.0 (non-commercial) | State-of-the-art open translation; fine for personal use. |
-| **Qwen2.5/Qwen3 7–14B** | `ollama pull qwen2.5:7b` | Apache-2.0 ✅ | Strong general fallback if you don't want a specialist. |
+| **EuroLLM-9B-Instruct** | community GGUF → `ollama create eurollm -f Modelfile` | **Apache-2.0** ✅ | Recommended default — top open quality with a clean license; ~6 GB Q4. Co-resides with the OCR VLM on a 16 GB GPU *only with eviction* (see the VRAM note). |
+| **EuroLLM-22B-Instruct** | community GGUF | **Apache-2.0** ✅ | Newer/stronger (Dec 2025) but ~13 GB+ Q4 — a **swap-in**, not co-resident with the OCR VLM on 16 GB. Use when translation quality matters more than keeping OCR hot. |
+| **Tower+ 9B** (Unbabel) | community GGUF | CC-BY-NC-SA-4.0 (non-commercial) | State-of-the-art open translation, but **personal use only** — never committed or recommended as a default on this public/GPL repo; you pull it yourself. |
+| **Qwen2.5/Qwen3 7–14B** | `ollama pull qwen2.5:7b` | Apache-2.0 ✅ | General fallback. Note: a 9B translation *specialist* beats a much larger general LLM on WMT24++ — prefer the specialist when quality matters. |
 
 EuroLLM/Tower aren't first-class Ollama library tags yet, so create from a GGUF:
 
@@ -33,7 +34,16 @@ ollama create eurollm -f eurollm.Modelfile
 ```
 
 The translation endpoint is just your Ollama (same box as OCR), so `OLLAMA_HOST=0.0.0.0` (from the
-OCR setup) already exposes it on the LAN/tailnet.
+OCR setup) already exposes it on the LAN/tailnet. (Security: don't leave 11434 unauthenticated on
+the tailnet — see `SYNCTHING_SETUP.md` / the Tailscale-grant + `tailscale serve` note.)
+
+## VRAM: translation + OCR on one 16 GB GPU
+The OCR vision model and the translation LLM don't both stay resident on 16 GB. Ollama keeps the
+most-recently-used model loaded and **evicts/reloads** the other on demand (a few seconds' reload,
+not a crash) — so translating right after OCR pays one reload. Options: (a) accept the reload
+(simplest, the default); (b) keep a single small model if you'll tolerate lower translation quality;
+or (c) run translation on a second box. EuroLLM-9B co-resides *with eviction*; EuroLLM-22B is a pure
+swap-in.
 
 ## Point the app at it
 
