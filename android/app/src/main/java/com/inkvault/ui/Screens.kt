@@ -1108,6 +1108,23 @@ private fun PageDetail(strokes: List<StrokeEntity>, vm: InkViewModel) {
         )
     }
     if (showAddEvent) AddEventDialog(vm, defaultTitle = "", onDismiss = { showAddEvent = false })
+    val showOcrDisclosure by vm.showOcrDisclosure.collectAsStateWithLifecycle()
+    if (showOcrDisclosure) {
+        AlertDialog(
+            onDismissRequest = { vm.dismissOcrDisclosure() },
+            title = { Text("Transcribe on this device?") },
+            text = {
+                Text(
+                    "On-device transcription uses Google's ML Kit handwriting recognition. Your " +
+                        "handwriting is recognized on your device and is never uploaded. The first " +
+                        "time, a one-time language model is downloaded from Google; after that no " +
+                        "further download is needed. (Your default OCR path stays your own NAS/OCR host.)",
+                )
+            },
+            confirmButton = { Button(onClick = { vm.confirmOcrDisclosure() }) { Text("Download & transcribe") } },
+            dismissButton = { TextButton(onClick = { vm.dismissOcrDisclosure() }) { Text("Cancel") } },
+        )
+    }
 }
 
 /**
