@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -253,15 +254,39 @@ fun InkApp(vm: InkViewModel) {
                         // Labeled (extended) so the teal button says what it does, not just "+".
                         val connected = pen is PenConnState.Connected
                         val label = if (connected) "New capture" else "Find a pen"
-                        // Gradient rounded-square FAB (mockup): transparent container + a gradient
-                        // background brush, white content.
+                        // v3 motion (mockup §motion): a gentle 3.8s vertical float + a 7s gradient
+                        // pan so the FAB reads "alive". Both go static under the system "remove
+                        // animations" setting (Compose infinite transitions ignore it on their own).
+                        val reduced = rememberReducedMotion()
+                        val fab = rememberInfiniteTransition(label = "fab")
+                        val floatY by fab.animateFloat(
+                            0f, if (reduced) 0f else -5f,
+                            infiniteRepeatable(tween(1900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                            label = "floatFab",
+                        )
+                        val pan by fab.animateFloat(
+                            0f, if (reduced) 0f else 1f,
+                            infiniteRepeatable(tween(3500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                            label = "gradPan",
+                        )
+                        // Gradient rounded-square FAB (mockup): transparent container + a panning
+                        // gradient brush, white content. span > FAB so the gradient slides visibly.
+                        val span = 320f
+                        val fabBrush = Brush.linearGradient(
+                            InkGradientStops,
+                            start = Offset(-span + pan * span, 0f),
+                            end = Offset(pan * span, span),
+                        )
                         ExtendedFloatingActionButton(
                             onClick = { if (connected) showLive = true else showScan = true },
                             shape = FabShape,
                             containerColor = Color.Transparent,
                             contentColor = Color.White,
                             elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
-                            modifier = Modifier.glow(FabShape).background(Brush.linearGradient(InkGradientStops), FabShape),
+                            modifier = Modifier
+                                .graphicsLayer { translationY = floatY.dp.toPx() }
+                                .glow(FabShape)
+                                .background(fabBrush, FabShape),
                             icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
                             text = { Text(label) },
                         )
@@ -1914,13 +1939,15 @@ private fun formatClock(ms: Long): String {
 /** Brass live dot with an expanding-ring pulse (design-system §8, 1.8s loop). */
 @Composable
 private fun LiveIndicator() {
+    val reduced = rememberReducedMotion()
     val t = rememberInfiniteTransition(label = "live")
+    // Reduced motion → ring stays at scale 1 / alpha 0 (invisible); the solid dot + LIVE pill remain.
     val scale by t.animateFloat(
-        initialValue = 1f, targetValue = 2.4f,
+        initialValue = 1f, targetValue = if (reduced) 1f else 2.4f,
         animationSpec = infiniteRepeatable(tween(1800), RepeatMode.Restart), label = "ring",
     )
     val alpha by t.animateFloat(
-        initialValue = 0.5f, targetValue = 0f,
+        initialValue = if (reduced) 0f else 0.5f, targetValue = 0f,
         animationSpec = infiniteRepeatable(tween(1800), RepeatMode.Restart), label = "ringAlpha",
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
