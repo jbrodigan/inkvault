@@ -156,6 +156,8 @@ import com.inkvault.ui.theme.LiveGreen
 import com.inkvault.ui.theme.NavyDeep
 import com.inkvault.ui.theme.InkTokens
 import com.inkvault.ui.theme.FabShape
+import com.inkvault.ui.theme.glow
+import com.inkvault.ui.theme.steelBorder
 import com.inkvault.ui.theme.freehandPath
 import com.inkvault.ui.theme.monoData
 import com.inkvault.ui.theme.monoEyebrow
@@ -259,7 +261,7 @@ fun InkApp(vm: InkViewModel) {
                             containerColor = Color.Transparent,
                             contentColor = Color.White,
                             elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
-                            modifier = Modifier.background(Brush.linearGradient(InkGradientStops), FabShape),
+                            modifier = Modifier.glow(FabShape).background(Brush.linearGradient(InkGradientStops), FabShape),
                             icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
                             text = { Text(label) },
                         )
@@ -451,7 +453,9 @@ private fun PenStatusCard(vm: InkViewModel, pen: PenConnState, onScan: () -> Uni
         is PenConnState.Disconnected -> Look(false, "No pen", "TAP TO CONNECT", cs.secondary, "Find a pen over Bluetooth", onScan)
     }
     Card(
-        Modifier.fillMaxWidth().padding(top = 4.dp).let { if (l.onTap != null) it.clickable { l.onTap!!() } else it },
+        Modifier.fillMaxWidth().padding(top = 4.dp).let { if (l.onTap != null) it.clickable { l.onTap!!() } else it }
+            .steelBorder(MaterialTheme.shapes.large),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = cs.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {

@@ -12,6 +12,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.border
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
 
 /**
  * The non-Material tokens that make the "Ink & Ncode" identity (design-system §6–7): the dot-grid
@@ -22,7 +27,7 @@ object InkTokens {
     // Ncode dot-grid (§6).
     val dotSpacing: Dp = 15.dp
     val dotRadius: Dp = 1.1.dp
-    val dotOffset: Dp = 8.dp
+    val dotOffset: Dp = 9.dp
 
     // Ink stroke geometry (§7).
     val inkWidthMin: Dp = 1.4.dp
@@ -35,7 +40,7 @@ object InkTokens {
     @Composable
     @ReadOnlyComposable
     fun dotColor(base: Color): Color =
-        base.copy(alpha = if (isSystemInDarkTheme()) 0.10f else 0.13f)
+        base.copy(alpha = if (isSystemInDarkTheme()) 0.14f else 0.13f)
 
     /** Pressure-modulated stroke width (0..1 pressure → [inkWidthMin]..[inkWidthMax]). */
     fun inkWidthFor(pressure: Float): Float {
@@ -113,3 +118,31 @@ fun freehandPath(points: List<Offset>, pressures: List<Float>, width: Float): Pa
     path.close()
     return path
 }
+
+/**
+ * The "vault frame" 1dp steel-hairline border (§5): a brushed-steel gradient edge over the surface
+ * fill, ~135° so it catches light at the corner. On light theme steel reads heavy on white, so it
+ * softens to a flat `outlineVariant` hairline.
+ */
+@Composable
+fun Modifier.steelBorder(shape: Shape, width: Dp = 1.dp): Modifier {
+    val brush = if (isSystemInDarkTheme()) {
+        Brush.linearGradient(listOf(SteelL, SteelM, SteelD))
+    } else {
+        SolidColor(MaterialTheme.colorScheme.outlineVariant)
+    }
+    return border(width, brush, shape)
+}
+
+/**
+ * Soft gradient glow (§4/§6): a tinted indigo halo behind FABs / badges / active controls. Dark
+ * only — the light scheme's glow is transparent (§1) — and `clip = false` so it bleeds past the
+ * shape. (A tinted shadow; a true 0-offset blurred halo would need a RenderEffect layer.)
+ */
+@Composable
+fun Modifier.glow(shape: Shape, elevation: Dp = 16.dp): Modifier =
+    if (isSystemInDarkTheme()) {
+        shadow(elevation, shape, clip = false, ambientColor = G2.copy(alpha = 0.45f), spotColor = G2.copy(alpha = 0.55f))
+    } else {
+        this
+    }
