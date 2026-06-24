@@ -317,6 +317,12 @@ class InkViewModel(
     /** Whether on-device OCR is wired (drives the menu item's visibility). */
     val onDeviceOcrAvailable: Boolean = transcribeOnDevice != null
 
+    /** User master switch for on-device transcription (default on). Off → NAS/OCR host only. */
+    val onDeviceOcrEnabled: StateFlow<Boolean> =
+        settings.onDeviceOcrEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    fun setOnDeviceOcrEnabled(on: Boolean) = viewModelScope.launch { settings.setOnDeviceOcrEnabled(on) }
+    fun resetOnDeviceOcrDisclosure() = viewModelScope.launch { settings.resetOnDeviceOcrDisclosure() }
+
     /** Drives the one-time disclosure that on-device OCR fetches a model from Google on first use. */
     private val _showOcrDisclosure = MutableStateFlow(false)
     val showOcrDisclosure: StateFlow<Boolean> = _showOcrDisclosure

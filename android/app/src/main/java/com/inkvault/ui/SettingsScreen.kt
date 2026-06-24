@@ -104,22 +104,36 @@ fun SettingsScreen(vm: InkViewModel, onBack: () -> Unit, onOpenCaptureLab: () ->
             }
         }
 
-        item { SectionLabel("Appearance") }
-        item {
-            SettingsCard {
-                DropdownRow(
-                    title = "Theme",
-                    desc = "System, or force light / dark",
-                    current = theme.label,
-                    options = ThemeMode.entries,
-                    optionLabel = { it.label },
-                    onPick = vm::setThemeMode,
-                )
-            }
-        }
+        item { CategoryHeader("Capture & Pen") }
 
         item { SectionLabel("Capture reliability") }
         item { CaptureReliabilityCard() }
+
+        item { SectionLabel("Pen security") }
+        item { PenSecurityCard(vm, penState) }
+
+        item { SectionLabel("Firmware") }
+        item { FirmwareCard(vm, penState) }
+
+        item { SectionLabel("Page action icons") }
+        item { SettingsCard { ActionZoneSettingsCard(vm) } }
+
+        item { SectionLabel("Capture lab") }
+        item {
+            SettingsCard {
+                Column(Modifier.padding(vertical = 14.dp)) {
+                    Text("Capture lab", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Measure the coordinate scale, record raw Ncode data, or capture planner reference points from the pen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(onClick = onOpenCaptureLab, modifier = Modifier.padding(top = 10.dp)) { Text("Open capture lab") }
+                }
+            }
+        }
+
+        item { CategoryHeader("Sync & Transcription") }
 
         item { SectionLabel("Sync") }
         item {
@@ -159,6 +173,9 @@ fun SettingsScreen(vm: InkViewModel, onBack: () -> Unit, onOpenCaptureLab: () ->
             }
         }
 
+        item { SectionLabel("Transcription (OCR)") }
+        item { OcrSettingsCard(vm) }
+
         item { SectionLabel("Translation") }
         item {
             SettingsCard {
@@ -190,32 +207,23 @@ fun SettingsScreen(vm: InkViewModel, onBack: () -> Unit, onOpenCaptureLab: () ->
             }
         }
 
-        item { SectionLabel("Pen security") }
-        item { PenSecurityCard(vm, penState) }
-
-        item { SectionLabel("Firmware") }
-        item { FirmwareCard(vm, penState) }
-
-        item { SectionLabel("Calendar") }
-        item { SettingsCard { CalendarSettingsCard(vm) } }
-
-        item { SectionLabel("Page action icons") }
-        item { SettingsCard { ActionZoneSettingsCard(vm) } }
-
-        item { SectionLabel("Capture lab") }
+        item { CategoryHeader("Appearance") }
         item {
             SettingsCard {
-                Column(Modifier.padding(vertical = 14.dp)) {
-                    Text("Capture lab", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Measure the coordinate scale, record raw Ncode data, or capture planner reference points from the pen.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Button(onClick = onOpenCaptureLab, modifier = Modifier.padding(top = 10.dp)) { Text("Open capture lab") }
-                }
+                DropdownRow(
+                    title = "Theme",
+                    desc = "System, or force light / dark",
+                    current = theme.label,
+                    options = ThemeMode.entries,
+                    optionLabel = { it.label },
+                    onPick = vm::setThemeMode,
+                )
             }
         }
+
+        item { CategoryHeader("Integrations") }
+        item { SectionLabel("Calendar") }
+        item { SettingsCard { CalendarSettingsCard(vm) } }
 
         item { Spacer(Modifier.height(24.dp)) }
     }
@@ -526,6 +534,67 @@ private fun CaptureReliabilityCard() {
                     style = MaterialTheme.typography.bodySmall,
                     color = cs.onSurfaceVariant,
                     modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Top-level Settings category — a bold header (Sora) above the mono section labels (design §9). */
+@Composable
+private fun CategoryHeader(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(start = 4.dp, top = 26.dp, bottom = 2.dp),
+    )
+}
+
+/**
+ * Transcription (OCR) controls. The NAS/OCR host is the default path (pages export there); on-device
+ * ML Kit is an opt-in convenience gated by a first-use disclosure. This centralizes the privacy
+ * controls: a master switch to keep it NAS-only, and a way to re-show the disclosure.
+ */
+@Composable
+private fun OcrSettingsCard(vm: InkViewModel) {
+    val cs = MaterialTheme.colorScheme
+    val enabled by vm.onDeviceOcrEnabled.collectAsStateWithLifecycle()
+    SettingsCard {
+        Column(Modifier.padding(vertical = 14.dp)) {
+            Text(
+                "Pages are transcribed by your own NAS/OCR host by default — they export there and your " +
+                    "watcher reads them; nothing leaves your network. On-device transcription (Google ML Kit) " +
+                    "is opt-in: a one-time model downloads from Google, then handwriting is recognized locally " +
+                    "and never uploaded.",
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.onSurfaceVariant,
+            )
+            if (vm.onDeviceOcrAvailable) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text("On-device transcription", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Allow the per-page \"Transcribe on device\" action. Off keeps transcription on your NAS/OCR host only.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = cs.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = enabled, onCheckedChange = vm::setOnDeviceOcrEnabled)
+                }
+                TextButton(onClick = { vm.resetOnDeviceOcrDisclosure() }, modifier = Modifier.padding(top = 4.dp)) {
+                    Text("Re-show the first-use notice")
+                }
+            } else {
+                Text(
+                    "On-device transcription isn't available in this build — transcription runs on your NAS/OCR host.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
         }
