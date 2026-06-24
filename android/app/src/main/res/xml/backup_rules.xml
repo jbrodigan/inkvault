@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy (API ≤30) backup rules — same intent as data_extraction_rules.xml: exclude the note vault,
+  the encrypted-secret prefs, and settings from auto-backup. See Section C4.
+-->
+<full-backup-content>
+    <exclude domain="database" path="inkvault.db" />
+    <exclude domain="database" path="inkvault.db-wal" />
+    <exclude domain="database" path="inkvault.db-shm" />
+    <exclude domain="sharedpref" path="inkvault_secrets.xml" />
+    <exclude domain="file" path="datastore/" />
+</full-backup-content>
