@@ -48,6 +48,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.InkVault">
 
+        <!-- Privacy (DESIGN.md no-telemetry rule): disable ML Kit / Firebase default usage &
+             diagnostic logging to Google. On-device OCR (ML Kit Digital Ink) downloads its model
+             on first use; nothing else is reported. -->
+        <meta-data
+            android:name="firebase_data_collection_default_enabled"
+            android:value="false" />
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"

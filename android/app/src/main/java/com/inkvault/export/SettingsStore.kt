@@ -48,6 +48,7 @@ class SettingsStore(private val context: Context) {
     private val tailscaleEndpointKey = stringPreferencesKey("sync.tailscale.endpoint")
     private val themeModeKey = stringPreferencesKey("ui.theme")
     private val rememberPasswordKey = booleanPreferencesKey("pen.remember_password")
+    private val onDeviceOcrAckKey = booleanPreferencesKey("ocr.on_device.acknowledged")
     private val calendarTargetIdKey = longPreferencesKey("calendar.target_id")
     private val translateEndpointKey = stringPreferencesKey("translate.endpoint")
     private val translateModelKey = stringPreferencesKey("translate.model")
@@ -60,6 +61,15 @@ class SettingsStore(private val context: Context) {
     val rememberPassword: Flow<Boolean> =
         context.settingsDataStore.data.map { it[rememberPasswordKey] ?: false }
     suspend fun setRememberPassword(on: Boolean) = edit { it[rememberPasswordKey] = on }
+
+    /**
+     * Whether the user has acknowledged that on-device OCR (ML Kit Digital Ink) downloads a one-time
+     * model from Google on first use — outbound to a target the user didn't select. We ask once via a
+     * disclosure, then never again. Default off, so the first "Transcribe on device" prompts.
+     */
+    val onDeviceOcrAcknowledged: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[onDeviceOcrAckKey] ?: false }
+    suspend fun acknowledgeOnDeviceOcr() = edit { it[onDeviceOcrAckKey] = true }
 
     /** The device calendar new events are added to (-1 = none chosen yet). */
     val calendarTargetId: Flow<Long> =
