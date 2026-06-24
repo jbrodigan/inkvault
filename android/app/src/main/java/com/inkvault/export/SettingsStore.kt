@@ -51,6 +51,7 @@ class SettingsStore(private val context: Context) {
     private val onDeviceOcrAckKey = booleanPreferencesKey("ocr.on_device.acknowledged")
     private val onDeviceOcrEnabledKey = booleanPreferencesKey("ocr.on_device.enabled")
     private val bgCaptureNudgeDismissedKey = booleanPreferencesKey("capture.bg_nudge_dismissed")
+    private val appLockEnabledKey = booleanPreferencesKey("security.app_lock")
     private val calendarTargetIdKey = longPreferencesKey("calendar.target_id")
     private val translateEndpointKey = stringPreferencesKey("translate.endpoint")
     private val translateModelKey = stringPreferencesKey("translate.model")
@@ -63,6 +64,11 @@ class SettingsStore(private val context: Context) {
     val rememberPassword: Flow<Boolean> =
         context.settingsDataStore.data.map { it[rememberPasswordKey] ?: false }
     suspend fun setRememberPassword(on: Boolean) = edit { it[rememberPasswordKey] = on }
+
+    /** Opt-in biometric/device-credential lock on app open + return-from-background (Section C1). Default off. */
+    val appLockEnabled: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[appLockEnabledKey] ?: false }
+    suspend fun setAppLockEnabled(on: Boolean) = edit { it[appLockEnabledKey] = on }
 
     /**
      * Whether the user has acknowledged that on-device OCR (ML Kit Digital Ink) downloads a one-time
