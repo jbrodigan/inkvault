@@ -3,13 +3,13 @@ package com.inkvault.ocr
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.common.model.RemoteModelManager
-import com.google.mlkit.vision.digitalink.DigitalInkRecognition
-import com.google.mlkit.vision.digitalink.DigitalInkRecognitionModel
-import com.google.mlkit.vision.digitalink.DigitalInkRecognitionModelIdentifier
-import com.google.mlkit.vision.digitalink.DigitalInkRecognizerOptions
-import com.google.mlkit.vision.digitalink.Ink
-import com.google.mlkit.vision.digitalink.RecognitionContext
-import com.google.mlkit.vision.digitalink.WritingArea
+import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognition
+import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModel
+import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModelIdentifier
+import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizerOptions
+import com.google.mlkit.vision.digitalink.recognition.Ink
+import com.google.mlkit.vision.digitalink.recognition.RecognitionContext
+import com.google.mlkit.vision.digitalink.recognition.WritingArea
 import com.inkvault.data.Point
 import com.inkvault.data.StrokeEntity
 import kotlinx.coroutines.Dispatchers
@@ -68,12 +68,11 @@ class OnDeviceInk(languageTag: String = java.util.Locale.getDefault().toLanguage
         fun sx(x: Float) = (x - minX) * scale + MARGIN
         fun sy(y: Float) = (y - minY) * scale + MARGIN
 
-        // ML Kit's native lib (libdigitalink.so) isn't 16 KB page-aligned, so on a device booted
-        // with 16 KB pages the recognizer fails to load (UnsatisfiedLinkError). Google ships no
-        // aligned build yet (mlkit#938), so we can't fix the .so — but we can fail soft: treat any
-        // ML Kit failure as "no on-device transcript" so the caller falls back to the server OCR
-        // path (the higher-quality one anyway) instead of crashing. Note: drop the wrapper once
-        // Google publishes a 16 KB-aligned digital-ink artifact.
+        // digital-ink-recognition:19.0.0 ships the 16 KB-page-aligned libdigitalink.so (the mlkit#938
+        // fix), so the recognizer loads on Android 15+ 16 KB-booted devices. We KEEP this fail-soft as
+        // defense-in-depth: any ML Kit failure (model download, resolve, init, recognize) becomes "no
+        // on-device transcript" so the caller falls back to the server OCR path (the higher-quality
+        // one anyway) instead of crashing.
         runCatching {
             if (!Tasks.await(modelManager.isModelDownloaded(model))) {
                 Tasks.await(modelManager.download(model, DownloadConditions.Builder().build()))
