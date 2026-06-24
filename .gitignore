@@ -9,3 +9,6 @@ android/neosdk/libs/*.aar
 android/neosdk/libs/*.jar
 android/penspike/libs/*.aar
 android/penspike/libs/*.jar
+
+# Local research notes — never commit (public repo)
+research/
