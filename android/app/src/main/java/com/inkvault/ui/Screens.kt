@@ -679,11 +679,30 @@ private fun formatEta(min: Int): String = if (min < 60) "${min}m" else "${min / 
 @Composable
 private fun NibBadge(live: Boolean) {
     val cs = MaterialTheme.colorScheme
+    val reduced = rememberReducedMotion()
+    val t = rememberInfiniteTransition(label = "nib")
+    // Live → a ring pulses out from the nib dot (mockup .live .pulse, ~1.9s); static otherwise.
+    val ringScale by t.animateFloat(
+        1f, if (live && !reduced) 2.6f else 1f,
+        infiniteRepeatable(tween(1900), RepeatMode.Restart), label = "nibRing",
+    )
+    val ringAlpha by t.animateFloat(
+        if (live && !reduced) 0.5f else 0f, 0f,
+        infiniteRepeatable(tween(1900), RepeatMode.Restart), label = "nibRingAlpha",
+    )
+    val dotColor = if (live) cs.tertiary else cs.secondary
     Box(
         Modifier.size(38.dp).background(cs.primaryContainer, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(9.dp).background(if (live) cs.tertiary else cs.secondary, CircleShape))
+        if (live) {
+            Box(
+                Modifier.size(9.dp)
+                    .graphicsLayer { scaleX = ringScale; scaleY = ringScale; alpha = ringAlpha }
+                    .background(dotColor, CircleShape),
+            )
+        }
+        Box(Modifier.size(9.dp).background(dotColor, CircleShape))
     }
 }
 
@@ -1471,8 +1490,24 @@ private fun DrawScope.drawStrokes(
     selected: Set<String> = emptySet(),
     highlight: Color = base,
     brandInk: Color = base,
+    glowLast: Color? = null,
 ) {
     val fit = inkFit(strokes, points, size.width, size.height) ?: return
+    // Live capture: a soft halo under the newest stroke so fresh ink reads as "drawing on". Drawn
+    // first (under) and bounded to one stroke + two passes, so the crisp ink stays on top and the
+    // capture canvas takes no per-frame animation cost.
+    if (glowLast != null) {
+        strokes.lastOrNull()?.let { s ->
+            val raw = points(s)
+            if (raw.isNotEmpty()) {
+                val pts = raw.map { fit.map(it.x, it.y) }
+                val pr = raw.map { it.pressure }
+                val w = InkTokens.inkWidthBase.toPx() * s.width
+                drawPath(freehandPath(pts, pr, w * 3.0f), glowLast.copy(alpha = 0.10f))
+                drawPath(freehandPath(pts, pr, w * 2.0f), glowLast.copy(alpha = 0.16f))
+            }
+        }
+    }
     strokes.forEach { s ->
         val raw = points(s)
         if (raw.isEmpty()) return@forEach
@@ -1646,7 +1681,7 @@ private fun LiveCaptureScreen(vm: InkViewModel, onBack: () -> Unit) {
             ExpandingSizePicker(selected = inkWidth, onColor = cs0.onSurface, onSelect = vm::setInkWidth)
         }
         pageId?.let { RecordingsStrip(it, vm) }
-        InkSurface(strokes, vm, Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp))
+        InkSurface(strokes, vm, Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp), liveGlow = true)
 
         val lastPoints = strokes.lastOrNull()?.let { vm.strokesFlowOf(it) }.orEmpty()
         val lastPoint = lastPoints.lastOrNull()
@@ -1966,7 +2001,13 @@ private fun LiveIndicator() {
 
 /** Read-only dot-grid ink surface — shared by live capture and the non-editing page view. */
 @Composable
-private fun InkSurface(strokes: List<StrokeEntity>, vm: InkViewModel, modifier: Modifier = Modifier, background: ImageBitmap? = null) {
+private fun InkSurface(
+    strokes: List<StrokeEntity>,
+    vm: InkViewModel,
+    modifier: Modifier = Modifier,
+    background: ImageBitmap? = null,
+    liveGlow: Boolean = false,
+) {
     val cs = MaterialTheme.colorScheme
     Card(
         modifier,
@@ -1976,7 +2017,7 @@ private fun InkSurface(strokes: List<StrokeEntity>, vm: InkViewModel, modifier: 
         val base = Modifier.fillMaxSize()
         Canvas(if (background == null) base.ncodeDotGrid(InkTokens.dotColor(cs.onBackground)) else base) {
             background?.let { drawPageBackground(it) }
-            drawStrokes(strokes, vm::strokesFlowOf, cs.primary, brandInk = cs.onSurface)
+            drawStrokes(strokes, vm::strokesFlowOf, cs.primary, brandInk = cs.onSurface, glowLast = if (liveGlow) cs.primary else null)
         }
     }
 }
